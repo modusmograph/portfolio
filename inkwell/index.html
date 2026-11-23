@@ -1,0 +1,1735 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Inkwell — Vector Dot Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+            sans: ['Inter', 'Roboto', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['"Roboto Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+          },
+          colors: {
+            gCanvas: '#F8F9FA',
+            gSurface: '#FFFFFF',
+            gContainer: '#F1F3F4',
+            gContainerHigh: '#E8EAED',
+            gOutline: '#DADCE0',
+            gOutlineStrong: '#80868B',
+            gBlue: '#1A73E8',
+            gBlueHover: '#1557B0',
+            gBlueContainer: '#D2E3FC',
+            gOnBlueContainer: '#041E49',
+            gInk: '#202124',
+            gInkSecondary: '#5F6368'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background-color: #F8F9FA;
+      color: #202124;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .material-symbols-rounded {
+      font-family: 'Material Symbols Rounded';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 20px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    /* Subtle checkerboard behind SVG board */
+    .board-checker {
+      background-color: #F1F3F4;
+      background-image:
+        linear-gradient(45deg, #E8EAED 25%, transparent 25%),
+        linear-gradient(-45deg, #E8EAED 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #E8EAED 75%),
+        linear-gradient(-45deg, transparent 75%, #E8EAED 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+
+    .board-checker svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Material Design 3 Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #D2E3FC;
+      border-radius: 9999px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1A73E8;
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 1px 3px rgba(32, 33, 36, 0.3);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 6px rgba(26, 115, 232, 0.12);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1A73E8;
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 1px 3px rgba(32, 33, 36, 0.3);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    input[type="range"]:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 6px rgba(26, 115, 232, 0.22);
+    }
+
+    /* Material Design 3 Segmented Button */
+    .m3-seg input:checked + .m3-seg-face {
+      background-color: #D2E3FC;
+      color: #041E49;
+      font-weight: 600;
+    }
+
+    /* Material Design 3 Filter Chip */
+    .m3-chip input:checked + .m3-chip-face {
+      background-color: #D2E3FC;
+      border-color: #1A73E8;
+      color: #041E49;
+      font-weight: 500;
+    }
+
+    .m3-chip input:checked + .m3-chip-face .chip-check {
+      display: inline-block;
+    }
+
+    /* Material Design 3 Switch */
+    .m3-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 44px;
+      height: 26px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .m3-switch input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .m3-switch-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background-color: #E8EAED;
+      border: 1.5px solid #80868B;
+      transition: background-color 0.16s ease, border-color 0.16s ease;
+    }
+
+    .m3-switch-track::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background-color: #5F6368;
+      transform: translateY(-50%);
+      transition: transform 0.16s ease, width 0.16s ease, height 0.16s ease, background-color 0.16s ease;
+    }
+
+    .m3-switch input:checked + .m3-switch-track {
+      background-color: #1A73E8;
+      border-color: #1A73E8;
+    }
+
+    .m3-switch input:checked + .m3-switch-track::after {
+      width: 18px;
+      height: 18px;
+      background-color: #FFFFFF;
+      transform: translate(17px, -50%);
+    }
+
+    .m3-switch input:focus-visible + .m3-switch-track {
+      box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.2);
+    }
+
+    /* Clean Circular Color Swatch Input */
+    input[type="color"] {
+      -webkit-appearance: none;
+      appearance: none;
+      border: none;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    input[type="color"]::-webkit-color-swatch {
+      border: 1px solid rgba(32, 33, 36, 0.18);
+      border-radius: 9999px;
+    }
+
+    /* Thumbnail Card Active State */
+    .thumb[aria-pressed="true"] .thumb-box {
+      outline: 2.5px solid #1A73E8;
+      outline-offset: 2px;
+    }
+
+    .thumb[aria-pressed="true"] .thumb-label {
+      color: #1A73E8;
+      font-weight: 600;
+    }
+
+    /* Dropzone Active Drag State */
+    .drop-active {
+      border-color: #1A73E8 !important;
+      background-color: rgba(210, 227, 252, 0.35) !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gCanvas text-gInk">
+
+  <!-- Sticky Google Material Design 3 Top App Bar -->
+  <header class="sticky top-0 z-30 bg-gSurface/95 backdrop-blur-md border-b border-gOutline">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <!-- Google-inspired 4-dot colorful mark -->
+        <div class="w-10 h-10 rounded-2xl bg-gContainer border border-gOutline/80 flex items-center justify-center shrink-0" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <circle cx="7.5" cy="7.5" r="3.6" fill="#4285F4"/>
+            <circle cx="16.5" cy="7.5" r="3.6" fill="#EA4335"/>
+            <circle cx="7.5" cy="16.5" r="3.6" fill="#FBBC04"/>
+            <circle cx="16.5" cy="16.5" r="3.6" fill="#34A853"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="font-display text-xl sm:text-2xl font-semibold tracking-tight text-gInk leading-none">Inkwell</h1>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gBlueContainer text-gOnBlueContainer">
+              Vector Dot Engine
+            </span>
+          </div>
+          <p class="text-xs sm:text-sm text-gInkSecondary mt-1">
+            Liquid-dot vector icon system for climate research — pick a study symbol or drop your own artwork.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="topReset" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs sm:text-sm font-medium text-gInkSecondary hover:bg-gContainer transition-colors">
+          <span class="material-symbols-rounded text-[18px]">restart_alt</span>
+          <span>Reset</span>
+        </button>
+        <button id="topCopySvg" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-medium bg-gBlue text-white hover:bg-gBlueHover shadow-xs transition-colors">
+          <span class="material-symbols-rounded text-[18px]">content_copy</span>
+          <span>Copy SVG</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace & Symbol Library -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 grid gap-10">
+
+    <!-- 2-Column Workspace -->
+    <main class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 lg:gap-8 items-start">
+
+      <!-- Left Preview Stage -->
+      <section class="lg:sticky lg:top-24 grid gap-3" aria-label="Live SVG preview">
+        <div class="bg-gSurface border border-gOutline rounded-[24px] p-4 sm:p-6 shadow-xs">
+          <div id="board" class="board-checker w-full max-w-[680px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gOutline/60"></div>
+        </div>
+
+        <!-- Status Bar & Live Feedback Toast -->
+        <div class="bg-gSurface border border-gOutline rounded-full px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gInkSecondary">
+          <div class="flex items-center gap-2 font-mono">
+            <span class="w-2 h-2 rounded-full bg-gBlue inline-block"></span>
+            <span id="info">0 dots · 0 bridges · SVG ≈ 1 KB · 480 × 480</span>
+          </div>
+          <span id="msg" role="status" aria-live="polite" class="font-medium text-gBlue"></span>
+        </div>
+      </section>
+
+      <!-- Right M3 Inspector Card -->
+      <aside class="bg-gSurface border border-gOutline rounded-[24px] divide-y divide-gOutline shadow-xs overflow-hidden" aria-label="Inspector controls">
+
+        <!-- Section 1: Artwork -->
+        <div class="p-5 grid gap-3.5">
+          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gInkSecondary">
+            <span class="material-symbols-rounded text-[18px] text-gBlue">category</span>
+            <h2>Artwork</h2>
+          </div>
+
+          <div class="relative">
+            <select id="icon" aria-label="Select study symbol" class="w-full h-11 pl-3.5 pr-9 rounded-xl bg-gContainer border border-gOutline text-sm font-medium text-gInk appearance-none focus:outline-none focus:border-gBlue focus:bg-gSurface transition-colors cursor-pointer"></select>
+            <span class="material-symbols-rounded text-[20px] text-gInkSecondary pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">expand_more</span>
+          </div>
+
+          <label id="drop" class="group flex items-center gap-3 p-3 rounded-2xl border border-dashed border-gOutlineStrong/60 hover:border-gBlue hover:bg-gBlueContainer/25 transition-colors cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-gContainer group-hover:bg-gBlueContainer flex items-center justify-center shrink-0 transition-colors">
+              <span class="material-symbols-rounded text-[20px] text-gBlue">upload_file</span>
+            </div>
+            <div class="min-w-0">
+              <div class="text-sm font-medium text-gInk">Upload artwork</div>
+              <div class="text-xs text-gInkSecondary truncate">PNG, JPG, or SVG · Drop or click</div>
+            </div>
+            <input type="file" id="file" accept="image/*" class="sr-only">
+          </label>
+        </div>
+
+        <!-- Section 2: Dot Matrix -->
+        <div class="p-5 grid gap-4">
+          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gInkSecondary">
+            <span class="material-symbols-rounded text-[18px] text-gBlue">blur_on</span>
+            <h2>Dot Matrix</h2>
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="size" class="font-medium text-gInk">Dot diameter</label>
+              <output id="o_size" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="size" min="4" max="60" step="1">
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="gap" class="font-medium text-gInk">Grid spacing</label>
+              <output id="o_gap" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="gap" min="10" max="64" step="1">
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="thr" class="font-medium text-gInk">Threshold</label>
+              <output id="o_thr" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="thr" min="5" max="95" step="1">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <span class="block text-xs font-medium text-gInkSecondary mb-1.5">Grid layout</span>
+              <div class="m3-seg grid grid-cols-2 rounded-full border border-gOutline overflow-hidden bg-gSurface" role="radiogroup" aria-label="Grid layout">
+                <label class="cursor-pointer">
+                  <input type="radio" name="grid" value="sq" class="sr-only">
+                  <span class="m3-seg-face block text-center text-xs py-2 text-gInkSecondary transition-colors">Square</span>
+                </label>
+                <label class="cursor-pointer border-l border-gOutline">
+                  <input type="radio" name="grid" value="hex" class="sr-only">
+                  <span class="m3-seg-face block text-center text-xs py-2 text-gInkSecondary transition-colors">Hexagonal</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <span class="block text-xs font-medium text-gInkSecondary mb-1.5">Dot sizing</span>
+              <div class="m3-seg grid grid-cols-2 rounded-full border border-gOutline overflow-hidden bg-gSurface" role="radiogroup" aria-label="Dot sizing">
+                <label class="cursor-pointer">
+                  <input type="radio" name="mode" value="solid" class="sr-only">
+                  <span class="m3-seg-face block text-center text-xs py-2 text-gInkSecondary transition-colors">Uniform</span>
+                </label>
+                <label class="cursor-pointer border-l border-gOutline">
+                  <input type="radio" name="mode" value="half" class="sr-only">
+                  <span class="m3-seg-face block text-center text-xs py-2 text-gInkSecondary transition-colors">Halftone</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <label class="flex items-center justify-between text-sm text-gInk cursor-pointer select-none pt-1">
+            <span class="font-medium">Invert light &amp; dark</span>
+            <span class="m3-switch">
+              <input type="checkbox" id="inv">
+              <span class="m3-switch-track"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Section 3: Liquid Bridges -->
+        <div class="p-5 grid gap-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gInkSecondary">
+              <span class="material-symbols-rounded text-[18px] text-gBlue">water_drop</span>
+              <h2>Liquid Bridges</h2>
+            </div>
+            <button id="shuffle" type="button" class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gBlueContainer text-gOnBlueContainer hover:brightness-95 transition-all">
+              <span class="material-symbols-rounded text-[15px]">shuffle</span>
+              <span>Shuffle</span>
+            </button>
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="liq" class="font-medium text-gInk">Liquidity</label>
+              <output id="o_liq" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="liq" min="0" max="100" step="1">
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="density" class="font-medium text-gInk">Connection density</label>
+              <output id="o_density" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="density" min="0" max="100" step="1">
+          </div>
+
+          <div class="grid gap-1.5">
+            <div class="flex justify-between text-sm">
+              <label for="widthPct" class="font-medium text-gInk">Bridge thickness</label>
+              <output id="o_widthPct" class="font-mono text-xs text-gInkSecondary tabular-nums"></output>
+            </div>
+            <input type="range" id="widthPct" min="5" max="100" step="1">
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 pt-0.5">
+            <label class="m3-chip cursor-pointer select-none">
+              <input type="checkbox" id="dir0" class="sr-only">
+              <span class="m3-chip-face inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-gOutline bg-gSurface text-xs text-gInkSecondary transition-colors">
+                <span class="chip-check hidden material-symbols-rounded text-[14px]">check</span>
+                <span>Horizontal</span>
+              </span>
+            </label>
+            <label class="m3-chip cursor-pointer select-none">
+              <input type="checkbox" id="dir1" class="sr-only">
+              <span class="m3-chip-face inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-gOutline bg-gSurface text-xs text-gInkSecondary transition-colors">
+                <span class="chip-check hidden material-symbols-rounded text-[14px]">check</span>
+                <span>Vertical</span>
+              </span>
+            </label>
+            <label class="m3-chip cursor-pointer select-none">
+              <input type="checkbox" id="dir2" class="sr-only">
+              <span class="m3-chip-face inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-gOutline bg-gSurface text-xs text-gInkSecondary transition-colors">
+                <span class="chip-check hidden material-symbols-rounded text-[14px]">check</span>
+                <span>Diagonal</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 4: Color & Stipple -->
+        <div class="p-5 grid gap-4">
+          <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gInkSecondary">
+            <span class="material-symbols-rounded text-[18px] text-gBlue">palette</span>
+            <h2>Color &amp; Stipple</h2>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-gContainer border border-gOutline/70 cursor-pointer">
+              <span class="text-xs font-medium text-gInk">Background</span>
+              <input type="color" id="bg" class="w-6 h-6">
+            </label>
+            <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-gContainer border border-gOutline/70 cursor-pointer">
+              <span class="text-xs font-medium text-gInk">Dots</span>
+              <input type="color" id="ink" class="w-6 h-6">
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-gInkSecondary">Theme palettes</span>
+            <div id="chips" class="flex items-center gap-2" aria-label="Research theme palettes"></div>
+          </div>
+
+          <div class="pt-2 border-t border-gOutline/60 grid gap-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-gInk">Stipple shadow</span>
+              <label class="m3-switch" aria-label="Toggle stipple shadow">
+                <input type="checkbox" id="shade">
+                <span class="m3-switch-track"></span>
+              </label>
+            </div>
+
+            <fieldset id="shadeOptions" class="grid gap-3 m-0 p-0 border-0 min-w-0">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="grid gap-1">
+                  <div class="flex justify-between text-xs">
+                    <label for="angle" class="text-gInkSecondary">Angle</label>
+                    <output id="o_angle" class="font-mono text-gInkSecondary tabular-nums"></output>
+                  </div>
+                  <input type="range" id="angle" min="0" max="360" step="1">
+                </div>
+                <div class="grid gap-1">
+                  <div class="flex justify-between text-xs">
+                    <label for="amount" class="text-gInkSecondary">Density</label>
+                    <output id="o_amount" class="font-mono text-gInkSecondary tabular-nums"></output>
+                  </div>
+                  <input type="range" id="amount" min="0" max="100" step="1">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div class="grid gap-1">
+                  <div class="flex justify-between text-xs">
+                    <label for="depth" class="text-gInkSecondary">Reach</label>
+                    <output id="o_depth" class="font-mono text-gInkSecondary tabular-nums"></output>
+                  </div>
+                  <input type="range" id="depth" min="0" max="40" step="0.5">
+                </div>
+                <div class="grid gap-1">
+                  <div class="flex justify-between text-xs">
+                    <label for="grain" class="text-gInkSecondary">Grain size</label>
+                    <output id="o_grain" class="font-mono text-gInkSecondary tabular-nums"></output>
+                  </div>
+                  <input type="range" id="grain" min="0.4" max="5" step="0.1">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-[1fr_auto] items-center gap-3">
+                <div class="grid gap-1">
+                  <div class="flex justify-between text-xs">
+                    <label for="opacity" class="text-gInkSecondary">Opacity</label>
+                    <output id="o_opacity" class="font-mono text-gInkSecondary tabular-nums"></output>
+                  </div>
+                  <input type="range" id="opacity" min="0" max="100" step="1">
+                </div>
+                <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-gContainer border border-gOutline/70 cursor-pointer" title="Shadow color">
+                  <span class="text-xs text-gInkSecondary">Shadow</span>
+                  <input type="color" id="shadeColor" class="w-5 h-5">
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+
+        <!-- Section 5: Export -->
+        <div class="p-5 grid gap-3.5 bg-gContainer/45">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gInkSecondary">
+              <span class="material-symbols-rounded text-[18px] text-gBlue">ios_share</span>
+              <h2>Export</h2>
+            </div>
+            <label class="inline-flex items-center gap-2 text-xs font-medium text-gInk cursor-pointer select-none">
+              <span>Transparent background</span>
+              <span class="m3-switch">
+                <input type="checkbox" id="transp">
+                <span class="m3-switch-track"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <button id="saveSvg" type="button" class="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-full bg-gBlue text-white text-sm font-medium hover:bg-gBlueHover shadow-xs transition-colors">
+              <span class="material-symbols-rounded text-[18px]">download</span>
+              <span>Download SVG</span>
+            </button>
+            <button id="savePng" type="button" class="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-full bg-gBlueContainer text-gOnBlueContainer text-sm font-medium hover:brightness-95 transition-all">
+              <span class="material-symbols-rounded text-[18px]">image</span>
+              <span>Download PNG</span>
+            </button>
+            <button id="copySvg" type="button" class="col-span-2 inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-full bg-gSurface border border-gOutline text-gInk text-sm font-medium hover:bg-gContainer transition-colors">
+              <span class="material-symbols-rounded text-[18px] text-gBlue">content_copy</span>
+              <span>Copy SVG for Figma</span>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <details id="codeBox" class="w-full group">
+              <summary class="flex items-center justify-between text-xs font-medium text-gInkSecondary hover:text-gBlue cursor-pointer select-none list-none">
+                <span class="inline-flex items-center gap-1">
+                  <span class="material-symbols-rounded text-[16px] transition-transform group-open:rotate-90">chevron_right</span>
+                  <span>View SVG code</span>
+                </span>
+                <button id="reset" type="button" class="text-xs font-medium text-gBlue hover:underline">Reset defaults</button>
+              </summary>
+              <textarea id="code" readonly aria-label="SVG source code" class="mt-2.5 w-full h-28 p-3 rounded-xl bg-gSurface border border-gOutline font-mono text-[11px] leading-relaxed text-gInk resize-y focus:outline-none focus:border-gBlue"></textarea>
+            </details>
+          </div>
+        </div>
+
+      </aside>
+    </main>
+
+    <!-- Research Symbol Library (3-Column Card Grid) -->
+    <section aria-label="Research Symbol Library" class="grid gap-4">
+      <div>
+        <h2 class="font-display text-lg sm:text-xl font-semibold text-gInk">Research Symbol Library</h2>
+        <p class="text-xs sm:text-sm text-gInkSecondary mt-0.5">Select any climate research symbol below to preview with your current dot matrix &amp; liquid bridge parameters.</p>
+      </div>
+      <div id="sheet" class="grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+    </section>
+
+  </div>
+
+  <script>
+    (function () {
+      /* ---------- Pure Metaball & Integral-Image Engine ---------- */
+      var W = 480, M = 360, K = M / W;
+
+      function f(n) {
+        return String(+n.toFixed(1));
+      }
+
+      function circlePath(x, y, r) {
+        return 'M' + f(x + r) + ' ' + f(y) +
+          'a' + f(r) + ' ' + f(r) + ' 0 1 1 ' + f(-2 * r) + ' 0' +
+          'a' + f(r) + ' ' + f(r) + ' 0 1 1 ' + f(2 * r) + ' 0z';
+      }
+
+      function randomEdge(a, b, seed) {
+        var n = Math.imul(a + 1, 73856093) ^ Math.imul(b + 1, 19349663) ^ seed;
+        n = Math.imul(n ^ (n >>> 16), 0x7feb352d);
+        n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+        return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+      }
+
+      function bridge(x, y, r, xx, yy, rr, t, widthPct) {
+        var d = Math.hypot(xx - x, yy - y);
+        if (!d || d <= Math.abs(r - rr)) return '';
+        var u = (xx - x) / d, v = (yy - y) / d;
+        var half = Math.min(r, rr) * widthPct / 100;
+        var angle = Math.asin(Math.min(1, half / r));
+        var endAngle = Math.asin(Math.min(1, half / rr));
+        var alpha = angle + (1.26 - angle) * t;
+        var beta = endAngle + (1.26 - endAngle) * t;
+        var left = r * Math.cos(alpha);
+        var right = d - rr * Math.cos(beta);
+        var h = r * Math.sin(alpha);
+        var k = rr * Math.sin(beta);
+
+        function point(s, n) {
+          return f(x + s * u - n * v) + ' ' + f(y + s * v + n * u);
+        }
+
+        if (right <= left) return '';
+        var mid = (left + right) / 2;
+        var handle = Math.min((right - left) * 0.24, r * t);
+        var tail = Math.min((right - left) * 0.24, rr * t);
+        var waist = half * (1 - 0.25 * t);
+
+        function side(sign, reverse) {
+          var pts = [
+            point(left, sign * h),
+            point(left + handle * Math.sin(alpha), sign * (h - handle * Math.cos(alpha))),
+            point(mid - (right - left) * 0.18, sign * waist),
+            point(mid, sign * waist),
+            point(mid + (right - left) * 0.18, sign * waist),
+            point(right - tail * Math.sin(beta), sign * (k - tail * Math.cos(beta))),
+            point(right, sign * k)
+          ];
+          if (reverse) pts.reverse();
+          return pts[0] + 'C' + pts.slice(1, 4).join(' ') + 'C' + pts.slice(4).join(' ');
+        }
+
+        return 'M' + side(-1, false) + 'L' + side(1, true) + 'Z';
+      }
+
+      function integral(w) {
+        var n = M + 1, s = new Float64Array(n * n);
+        for (var y = 0; y < M; y++) {
+          var row = 0;
+          for (var x = 0; x < M; x++) {
+            row += w[y * M + x];
+            s[(y + 1) * n + x + 1] = s[y * n + x + 1] + row;
+          }
+        }
+        return s;
+      }
+
+      function boxAvg(S, xc, yc, half) {
+        var x0 = Math.round(xc - half), x1 = Math.round(xc + half);
+        var y0 = Math.round(yc - half), y1 = Math.round(yc + half);
+        var area = Math.max(1, (x1 - x0) * (y1 - y0));
+        x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+        x1 = Math.min(M, x1); y1 = Math.min(M, y1);
+        if (x1 <= x0 || y1 <= y0) return 0;
+        var n = M + 1;
+        return (S[y1 * n + x1] - S[y0 * n + x1] - S[y1 * n + x0] + S[y0 * n + x0]) / area;
+      }
+
+      function build(st, sat) {
+        var R = st.size / 2, gap = st.gap, hex = st.grid === 'hex';
+        var rowH = hex ? gap * 0.866 : gap;
+        var cols = Math.max(1, Math.floor(W / gap)), rows = Math.max(1, Math.floor(W / rowH));
+        var used = (cols - 1) * gap + (hex ? gap / 2 : 0);
+        var ox = (W - used) / 2, oy = (W - (rows - 1) * rowH) / 2;
+        var half = gap * K * 0.5;
+        var thr = st.thr / 100;
+        var rad = new Float32Array(cols * rows);
+        var X = new Float32Array(cols * rows), Y = new Float32Array(cols * rows);
+        var parts = [], count = 0;
+
+        for (var j = 0; j < rows; j++) {
+          for (var i = 0; i < cols; i++) {
+            var k = j * cols + i;
+            var x = ox + i * gap + (hex && (j & 1) ? gap / 2 : 0);
+            var y = oy + j * rowH;
+            X[k] = x;
+            Y[k] = y;
+            var w = boxAvg(sat, x * K, y * K, half);
+            if (st.inv) w = 1 - w;
+            var r = 0;
+            if (st.mode === 'solid') {
+              r = w >= thr ? R : 0;
+            } else {
+              var g = 0.5 + (w - thr) * 2.4;
+              g = g < 0 ? 0 : g > 1 ? 1 : g;
+              r = g < 0.16 ? 0 : R * Math.sqrt(g);
+            }
+            if (r < 0.7) r = 0;
+            rad[k] = r;
+            if (r > 0) {
+              parts.push(circlePath(x, y, r));
+              count++;
+            }
+          }
+        }
+
+        var links = 0, v = st.liq / 100;
+        if (st.density > 0) {
+          for (var j2 = 0; j2 < rows; j2++) {
+            for (var i2 = 0; i2 < cols; i2++) {
+              var a = j2 * cols + i2;
+              if (!rad[a]) continue;
+              var nb = [];
+              if (i2 + 1 < cols) nb.push(a + 1);
+              if (hex && j2 + 2 < rows) nb.push(a + 2 * cols);
+              if (j2 + 1 < rows) {
+                if (!hex) {
+                  nb.push(a + cols);
+                  if (i2 + 1 < cols) nb.push(a + cols + 1);
+                  if (i2 > 0) nb.push(a + cols - 1);
+                } else if (j2 & 1) {
+                  nb.push(a + cols);
+                  if (i2 + 1 < cols) nb.push(a + cols + 1);
+                } else {
+                  nb.push(a + cols);
+                  if (i2 > 0) nb.push(a + cols - 1);
+                }
+              }
+              for (var n2 = 0; n2 < nb.length; n2++) {
+                var b = nb[n2];
+                if (!rad[b]) continue;
+                var direction = Y[a] === Y[b] ? 0 : X[a] === X[b] ? 1 : 2;
+                if (!st['dir' + direction] || randomEdge(a, b, st.seed) >= st.density / 100) continue;
+                var neck = bridge(X[a], Y[a], rad[a], X[b], Y[b], rad[b], v, st.widthPct);
+                if (neck) {
+                  parts.push(neck);
+                  links++;
+                }
+              }
+            }
+          }
+        }
+        return { d: parts.join(''), count: count, links: links };
+      }
+
+      /* ---------- Research Pillars & Symbol Definitions (100x100 canvas) ---------- */
+      function circ(c, x, y, r) {
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.fill();
+      }
+
+      var TOPICS = {
+        nat: {
+          name: 'Nature · Zero-leakage land use',
+          note: 'Forest-pasture boundaries, agroforestry rows, and land contour gradients.',
+          pal: { bg: '#e4f04f', ink: '#12301f' }
+        },
+        tec: {
+          name: 'Technology · Biomass biochar',
+          note: 'Pyrolysis reactors, porous carbon characterization, and biomass conversion.',
+          pal: { bg: '#2447e6', ink: '#f3f0e6' }
+        },
+        sup: {
+          name: 'Superpollutants · OH radical',
+          note: 'Hydroxyl radical chemistry, atmospheric transport, and methane lifetime.',
+          pal: { bg: '#ff8a3d', ink: '#151515' }
+        }
+      };
+
+      var ICONS = [
+        // Column 1: Nature · Zero-leakage land use
+        {
+          id: 'fronteira',
+          topic: 'nat',
+          name: 'Pasture & forest edge',
+          draw: function (c) {
+            [[24, 24, 16], [30, 50, 18], [22, 76, 15], [42, 36, 10], [42, 66, 10]].forEach(function (a) { circ(c, a[0], a[1], a[2]); });
+            c.fillRect(49, 6, 4, 88);
+            for (var y = 12; y < 90; y += 18) c.fillRect(60, y, 34, 9);
+          }
+        },
+        {
+          id: 'agro',
+          topic: 'nat',
+          name: 'Agroforestry',
+          draw: function (c) {
+            [[22, 28, 14], [50, 22, 16], [78, 28, 14]].forEach(function (a) { circ(c, a[0], a[1], a[2]); });
+            c.lineWidth = 5;
+            c.beginPath();
+            c.moveTo(22, 40); c.lineTo(22, 62);
+            c.moveTo(50, 36); c.lineTo(50, 62);
+            c.moveTo(78, 40); c.lineTo(78, 62);
+            c.stroke();
+            c.lineWidth = 6.5;
+            c.beginPath();
+            [68, 79, 90].forEach(function (y) { c.moveTo(8, y); c.lineTo(92, y); });
+            c.stroke();
+          }
+        },
+        {
+          id: 'nivel',
+          topic: 'nat',
+          name: 'Contour lines',
+          draw: function (c) {
+            c.lineWidth = 5.5;
+            [[41, 31], [27, 20]].forEach(function (r) {
+              c.beginPath();
+              c.ellipse(50, 52, r[0], r[1], -0.35, 0, Math.PI * 2);
+              c.stroke();
+            });
+            c.beginPath();
+            c.ellipse(50, 52, 12, 8, -0.35, 0, Math.PI * 2);
+            c.fill();
+          }
+        },
+        {
+          id: 'arvore',
+          topic: 'nat',
+          name: 'Tree & roots',
+          draw: function (c) {
+            [[50, 30, 22], [31, 42, 15], [69, 42, 15], [38, 22, 13], [62, 22, 13]].forEach(function (a) { circ(c, a[0], a[1], a[2]); });
+            c.lineWidth = 8;
+            c.beginPath(); c.moveTo(50, 48); c.lineTo(50, 70); c.stroke();
+            c.lineWidth = 4.5;
+            c.beginPath();
+            c.moveTo(50, 68); c.quadraticCurveTo(48, 80, 30, 90);
+            c.moveTo(50, 68); c.quadraticCurveTo(52, 80, 70, 90);
+            c.moveTo(50, 70); c.lineTo(50, 94);
+            c.stroke();
+          }
+        },
+        {
+          id: 'folha',
+          topic: 'nat',
+          name: 'Leaf',
+          draw: function (c) {
+            c.beginPath();
+            c.moveTo(20, 80);
+            c.bezierCurveTo(8, 40, 40, 10, 86, 14);
+            c.bezierCurveTo(90, 60, 56, 92, 20, 80);
+            c.closePath();
+            c.fill();
+            c.lineWidth = 4.5;
+            c.beginPath(); c.moveTo(20, 80); c.lineTo(9, 93); c.stroke();
+            c.globalCompositeOperation = 'destination-out';
+            c.lineWidth = 3.4;
+            c.beginPath(); c.moveTo(26, 74); c.lineTo(68, 32); c.stroke();
+            c.globalCompositeOperation = 'source-over';
+          }
+        },
+        {
+          id: 'mangue',
+          topic: 'nat',
+          name: 'Mangrove',
+          draw: function (c) {
+            [[50, 24, 16], [33, 31, 11], [67, 31, 11]].forEach(function (a) { circ(c, a[0], a[1], a[2]); });
+            c.lineWidth = 6;
+            c.beginPath(); c.moveTo(50, 36); c.lineTo(50, 58); c.stroke();
+            c.lineWidth = 4.2;
+            c.beginPath();
+            c.moveTo(50, 52); c.quadraticCurveTo(34, 56, 24, 82);
+            c.moveTo(50, 52); c.quadraticCurveTo(66, 56, 76, 82);
+            c.moveTo(50, 58); c.quadraticCurveTo(43, 68, 40, 84);
+            c.moveTo(50, 58); c.quadraticCurveTo(57, 68, 60, 84);
+            c.stroke();
+            c.lineWidth = 3.6;
+            c.beginPath();
+            for (var x = 6; x <= 94; x += 2) {
+              var y = 72 + 2.6 * Math.sin((x - 6) / 5.5);
+              if (x === 6) c.moveTo(x, y); else c.lineTo(x, y);
+            }
+            c.stroke();
+          }
+        },
+
+        // Column 2: Technology · Biomass biochar
+        {
+          id: 'reator',
+          topic: 'tec',
+          name: 'Pyrolysis reactor',
+          draw: function (c) {
+            c.lineWidth = 6;
+            c.lineJoin = 'round';
+            c.strokeRect(27, 32, 46, 46);
+            c.fillRect(44, 8, 12, 24);
+            c.fillRect(8, 50, 19, 6);
+            c.fillRect(14, 86, 72, 6);
+            circ(c, 50, 63, 10);
+            circ(c, 50, 46, 5);
+          }
+        },
+        {
+          id: 'biochar',
+          topic: 'tec',
+          name: 'Porous biochar',
+          draw: function (c) {
+            c.beginPath();
+            c.ellipse(50, 50, 41, 34, 0.4, 0, Math.PI * 2);
+            c.fill();
+            c.globalCompositeOperation = 'destination-out';
+            [[36, 42, 6], [60, 36, 5], [64, 60, 7], [41, 64, 5], [50, 51, 3.6], [26, 60, 4], [74, 44, 3.6]].forEach(function (a) {
+              circ(c, a[0], a[1], a[2]);
+            });
+            c.globalCompositeOperation = 'source-over';
+          }
+        },
+        {
+          id: 'conversao',
+          topic: 'tec',
+          name: 'Biomass to carbon',
+          draw: function (c) {
+            [[12, 38, 7], [26, 54, 8], [12, 66, 6], [27, 32, 6]].forEach(function (a) { circ(c, a[0], a[1], a[2]); });
+            c.lineWidth = 7;
+            c.beginPath(); c.moveTo(38, 50); c.lineTo(52, 50); c.stroke();
+            c.beginPath(); c.moveTo(50, 37); c.lineTo(65, 50); c.lineTo(50, 63); c.closePath(); c.fill();
+            c.beginPath();
+            for (var i = 0; i < 6; i++) {
+              var a = i * Math.PI / 3;
+              var px = 84 + 13 * Math.cos(a), py = 50 + 13 * Math.sin(a);
+              if (i) c.lineTo(px, py); else c.moveTo(px, py);
+            }
+            c.closePath();
+            c.fill();
+          }
+        },
+        {
+          id: 'dac',
+          topic: 'tec',
+          name: 'Direct air capture',
+          draw: function (c) {
+            c.lineWidth = 5;
+            c.beginPath(); c.arc(50, 50, 38, 0, Math.PI * 2); c.stroke();
+            circ(c, 50, 50, 7);
+            for (var i = 0; i < 3; i++) {
+              c.save();
+              c.translate(50, 50);
+              c.rotate(i * 2 * Math.PI / 3);
+              c.beginPath();
+              c.ellipse(0, -20, 7.5, 15, 0.45, 0, Math.PI * 2);
+              c.fill();
+              c.restore();
+            }
+          }
+        },
+        {
+          id: 'mof',
+          topic: 'tec',
+          name: 'MOF lattice',
+          draw: function (c) {
+            var p = [22, 50, 78];
+            c.lineWidth = 5;
+            c.beginPath();
+            p.forEach(function (a) {
+              c.moveTo(22, a); c.lineTo(78, a);
+              c.moveTo(a, 22); c.lineTo(a, 78);
+            });
+            c.stroke();
+            p.forEach(function (x) { p.forEach(function (y) { circ(c, x, y, 8); }); });
+            circ(c, 36, 36, 5);
+            circ(c, 64, 64, 5);
+          }
+        },
+        {
+          id: 'cristal',
+          topic: 'tec',
+          name: 'Mineral crystal',
+          draw: function (c) {
+            c.beginPath();
+            c.moveTo(28, 18); c.lineTo(72, 18); c.lineTo(92, 40); c.lineTo(50, 88); c.lineTo(8, 40);
+            c.closePath();
+            c.fill();
+            c.globalCompositeOperation = 'destination-out';
+            c.lineWidth = 3;
+            c.lineJoin = 'round';
+            c.lineCap = 'round';
+            c.beginPath();
+            c.moveTo(8, 40); c.lineTo(92, 40);
+            c.moveTo(28, 18); c.lineTo(38, 40); c.lineTo(50, 86);
+            c.moveTo(72, 18); c.lineTo(62, 40); c.lineTo(50, 86);
+            c.stroke();
+            c.globalCompositeOperation = 'source-over';
+          }
+        },
+
+        // Column 3: Superpollutants · OH radical
+        {
+          id: 'oh',
+          topic: 'sup',
+          name: 'OH radical',
+          draw: function (c) {
+            c.lineWidth = 6;
+            c.beginPath(); c.moveTo(40, 56); c.lineTo(74, 30); c.stroke();
+            circ(c, 40, 56, 26);
+            circ(c, 76, 28, 11);
+            circ(c, 14, 22, 5.5);
+          }
+        },
+        {
+          id: 'globo',
+          topic: 'sup',
+          name: 'Atmospheric globe',
+          draw: function (c) {
+            c.lineWidth = 5;
+            c.beginPath(); c.arc(50, 50, 38, 0, Math.PI * 2); c.stroke();
+            c.lineWidth = 4;
+            c.beginPath(); c.ellipse(50, 50, 16, 38, 0, 0, Math.PI * 2); c.stroke();
+            c.beginPath();
+            c.moveTo(12, 50); c.lineTo(88, 50);
+            c.moveTo(18, 30); c.lineTo(82, 30);
+            c.moveTo(18, 70); c.lineTo(82, 70);
+            c.stroke();
+          }
+        },
+        {
+          id: 'ampulheta',
+          topic: 'sup',
+          name: 'Methane lifetime',
+          draw: function (c) {
+            c.fillRect(18, 6, 64, 7);
+            c.fillRect(18, 87, 64, 7);
+            c.lineWidth = 5;
+            c.lineJoin = 'round';
+            c.beginPath();
+            c.moveTo(26, 14); c.lineTo(74, 14); c.lineTo(53, 50);
+            c.lineTo(74, 86); c.lineTo(26, 86); c.lineTo(47, 50);
+            c.closePath();
+            c.stroke();
+            c.beginPath(); c.moveTo(34, 86); c.lineTo(66, 86); c.lineTo(50, 64); c.closePath(); c.fill();
+            c.beginPath(); c.moveTo(39, 24); c.lineTo(61, 24); c.lineTo(50, 38); c.closePath(); c.fill();
+          }
+        },
+        {
+          id: 'metano',
+          topic: 'sup',
+          name: 'Methane (CH₄)',
+          draw: function (c) {
+            var H = [[50, 12, 8], [14, 62, 8], [86, 62, 8], [50, 86, 10]];
+            c.lineWidth = 4;
+            c.beginPath();
+            H.forEach(function (h) { c.moveTo(50, 48); c.lineTo(h[0], h[1]); });
+            c.stroke();
+            circ(c, 50, 48, 15);
+            H.forEach(function (h) { circ(c, h[0], h[1], h[2]); });
+          }
+        },
+        {
+          id: 'fumaca',
+          topic: 'sup',
+          name: 'Soot & stack',
+          draw: function (c) {
+            c.fillRect(18, 50, 18, 40);
+            c.fillRect(14, 46, 26, 7);
+            c.fillRect(8, 90, 84, 5);
+            [[46, 38, 7], [58, 29, 10], [73, 21, 13], [87, 46, 3], [78, 60, 2.6], [66, 49, 3.2]].forEach(function (a) {
+              circ(c, a[0], a[1], a[2]);
+            });
+          }
+        },
+        {
+          id: 'floco',
+          topic: 'sup',
+          name: 'Refrigerant',
+          draw: function (c) {
+            c.lineWidth = 4.5;
+            for (var i = 0; i < 6; i++) {
+              c.save();
+              c.translate(50, 50);
+              c.rotate(i * Math.PI / 3);
+              c.beginPath();
+              c.moveTo(0, 0); c.lineTo(0, -42);
+              c.moveTo(0, -30); c.lineTo(-11, -41);
+              c.moveTo(0, -30); c.lineTo(11, -41);
+              c.moveTo(0, -16); c.lineTo(-7, -23);
+              c.moveTo(0, -16); c.lineTo(7, -23);
+              c.stroke();
+              c.restore();
+            }
+            circ(c, 50, 50, 7);
+          }
+        }
+      ];
+
+      var BYID = {};
+      ICONS.forEach(function (ic) { BYID[ic.id] = ic; });
+
+      function newCanvas() {
+        var c = document.createElement('canvas');
+        c.width = M;
+        c.height = M;
+        return c;
+      }
+
+      function maskFromIcon(ic) {
+        var cv = newCanvas();
+        var x = cv.getContext('2d', { willReadFrequently: true });
+        x.scale(M / 100, M / 100);
+        x.fillStyle = '#fff';
+        x.strokeStyle = '#fff';
+        x.lineCap = 'round';
+        x.lineJoin = 'round';
+        ic.draw(x);
+        var d = x.getImageData(0, 0, M, M).data;
+        var w = new Float32Array(M * M);
+        for (var i = 0; i < w.length; i++) w[i] = d[i * 4 + 3] / 255;
+        return integral(w);
+      }
+
+      function maskFromImage(img) {
+        var cv = newCanvas();
+        var x = cv.getContext('2d', { willReadFrequently: true });
+        var iw = img.naturalWidth || img.width || 100;
+        var ih = img.naturalHeight || img.height || 100;
+        var pad = M * 0.08;
+        var s = Math.min((M - 2 * pad) / iw, (M - 2 * pad) / ih);
+        var dw = Math.max(1, Math.round(iw * s));
+        var dh = Math.max(1, Math.round(ih * s));
+        var dx = Math.round((M - dw) / 2);
+        var dy = Math.round((M - dh) / 2);
+        x.drawImage(img, dx, dy, dw, dh);
+        var d = x.getImageData(0, 0, M, M).data;
+        var w = new Float32Array(M * M);
+        var clear = 0, total = dw * dh, edgeSum = 0, edgeN = 0;
+
+        function lum(i) {
+          return (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+        }
+
+        for (var yy = dy; yy < dy + dh; yy++) {
+          for (var xx = dx; xx < dx + dw; xx++) {
+            var i = (yy * M + xx) * 4;
+            if (d[i + 3] < 230) clear++;
+            if (yy < dy + 2 || yy >= dy + dh - 2 || xx < dx + 2 || xx >= dx + dw - 2) {
+              edgeSum += lum(i);
+              edgeN++;
+            }
+          }
+        }
+        var alphaMode = clear / total > 0.02;
+        var lightBg = edgeN ? edgeSum / edgeN > 0.5 : false;
+        for (var p = 0; p < w.length; p++) {
+          var a = d[p * 4 + 3] / 255;
+          if (alphaMode) {
+            w[p] = a;
+          } else {
+            var l = lum(p * 4);
+            w[p] = a * (lightBg ? 1 - l : l);
+          }
+        }
+        return { sat: integral(w), alphaMode: alphaMode };
+      }
+
+      /* ---------- Application State & Rendering ---------- */
+      var $ = function (id) { return document.getElementById(id); };
+
+      var DEFAULTS = {
+        size: 14,
+        gap: 20,
+        liq: 42,
+        thr: 45,
+        grid: 'sq',
+        mode: 'solid',
+        inv: false,
+        widthPct: 36,
+        density: 27,
+        seed: 735,
+        dir0: true,
+        dir1: true,
+        dir2: true,
+        shade: false,
+        shadeColor: '#071b19',
+        angle: 90,
+        amount: 78,
+        depth: 5,
+        grain: 0.9,
+        opacity: 100
+      };
+
+      var st = {
+        icon: 'fronteira',
+        topic: 'nat',
+        bg: TOPICS.nat.pal.bg,
+        ink: TOPICS.nat.pal.ink,
+        transp: false
+      };
+      Object.assign(st, DEFAULTS);
+
+      var shadeUnits = {
+        angle: '°',
+        amount: '%',
+        depth: ' px',
+        grain: ' px',
+        opacity: '%'
+      };
+
+      var maskCache = {}, upload = null, last = null;
+
+      function currentSat() {
+        if (st.icon === 'upload' && upload) return upload.sat;
+        if (!maskCache[st.icon]) maskCache[st.icon] = maskFromIcon(BYID[st.icon]);
+        return maskCache[st.icon];
+      }
+
+      var clipSerial = 0;
+      var grainCache = new Map();
+
+      function stipple(d) {
+        if (!st.shade || !d || !st.amount || !st.depth || !st.opacity) return '';
+        var key = [st.angle % 360, st.amount, st.depth, st.grain, d].join('|');
+        if (!grainCache.has(key)) {
+          var cv = document.createElement('canvas');
+          cv.width = cv.height = W;
+          var ctx = cv.getContext('2d', { willReadFrequently: true });
+          ctx.fill(new Path2D(d));
+          var pixels = ctx.getImageData(0, 0, W, W).data;
+          var marks = [];
+
+          function inside(x, y) {
+            return x >= 0 && y >= 0 && x < W && y < W && pixels[4 * (Math.floor(y) * W + Math.floor(x)) + 3] > 230;
+          }
+
+          var angle = st.angle * Math.PI / 180;
+          var dx = Math.cos(angle), dy = Math.sin(angle);
+          var distances = new Float32Array(W * W);
+
+          for (var y = 0; y < W; y++) {
+            for (var x = 0; x < W; x++) {
+              if (!inside(x, y)) continue;
+              var distance = 0.5;
+              while (distance <= st.depth && inside(x + 0.5 + dx * distance, y + 0.5 + dy * distance)) {
+                distance++;
+              }
+              distances[y * W + x] = Math.max(0, 1 - (distance - 0.5) / st.depth);
+            }
+          }
+
+          var spacing = Math.max(0.38, st.grain * 0.63);
+          var cells = Math.ceil(W / spacing);
+          for (var row = 0; row < cells; row++) {
+            for (var col = 0; col < cells; col++) {
+              var i = row * cells + col;
+              var gx = (col + randomEdge(i, 1, 71)) * spacing;
+              var gy = (row + randomEdge(i, 2, 71)) * spacing;
+              if (gx >= W || gy >= W) continue;
+              var strength = distances[Math.floor(gy) * W + Math.floor(gx)];
+              if (!strength || randomEdge(i, 3, 71) > Math.pow(strength, 1.7) * st.amount / 100) continue;
+              var radius = st.grain * (0.16 + 0.46 * randomEdge(i, 4, 71)) * (0.62 + 0.55 * strength);
+              marks.push(circlePath(gx, gy, radius));
+            }
+          }
+          if (grainCache.size >= 12) grainCache.delete(grainCache.keys().next().value);
+          grainCache.set(key, marks.join(''));
+        }
+        var clip = 'stipple-edge-' + (++clipSerial);
+        return '<defs><clipPath id="' + clip + '"><path d="' + d + '"/></clipPath></defs>' +
+          '<path clip-path="url(#' + clip + ')" fill="' + st.shadeColor + '" fill-opacity="' + (st.opacity / 100) + '" d="' + grainCache.get(key) + '"/>';
+      }
+
+      function svgMarkup(d, bg, ink, transp, noShade) {
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + W + '" width="' + W + '" height="' + W + '">' +
+          (transp ? '' : '<rect width="' + W + '" height="' + W + '" fill="' + bg + '"/>') +
+          '<path d="' + d + '" fill="' + ink + '"/>' +
+          (noShade ? '' : stipple(d)) +
+          '</svg>';
+      }
+
+      function renderMain() {
+        last = build(st, currentSat());
+        var board = $('board');
+        if (board) board.innerHTML = svgMarkup(last.d, st.bg, st.ink, st.transp);
+        var kb = Math.max(1, Math.round(svgMarkup(last.d, st.bg, st.ink, st.transp).length / 1024));
+        var info = $('info');
+        if (info) {
+          info.textContent = last.count + ' dots · ' + last.links + ' bridges · SVG ≈ ' + kb + ' KB · ' + W + ' × ' + W;
+        }
+        var codeBox = $('codeBox');
+        if (codeBox && codeBox.open) {
+          $('code').value = svgMarkup(last.d, st.bg, st.ink, st.transp);
+        }
+      }
+
+      var raf = 0, thumbTimer = 0;
+      function schedule() {
+        if (!raf) {
+          raf = requestAnimationFrame(function () {
+            raf = 0;
+            renderMain();
+          });
+        }
+        clearTimeout(thumbTimer);
+        thumbTimer = setTimeout(renderThumbs, 180);
+      }
+
+      function renderThumbs() {
+        ICONS.forEach(function (ic) {
+          if (!maskCache[ic.id]) maskCache[ic.id] = maskFromIcon(ic);
+          var pal = TOPICS[ic.topic].pal;
+          var r = build(st, maskCache[ic.id]);
+          var el = document.querySelector('[data-thumb="' + ic.id + '"]');
+          if (el) {
+            el.innerHTML = svgMarkup(r.d, pal.bg, pal.ink, false, true).replace(' width="480" height="480"', '');
+          }
+        });
+      }
+
+      /* ---------- UI Wiring ---------- */
+      function setColors(p) {
+        st.bg = p.bg;
+        st.ink = p.ink;
+        $('bg').value = p.bg;
+        $('ink').value = p.ink;
+      }
+
+      function syncOutputs() {
+        $('widthPct').value = st.widthPct;
+        $('o_widthPct').textContent = st.widthPct + '%';
+        $('shadeOptions').disabled = !st.shade;
+        $('shadeOptions').style.opacity = st.shade ? '1' : '0.45';
+
+        Object.keys(shadeUnits).forEach(function (id) {
+          $(id).value = st[id];
+          $('o_' + id).textContent = st[id] + shadeUnits[id];
+        });
+
+        $('density').value = st.density;
+        $('o_density').textContent = st.density + '%';
+
+        ['dir0', 'dir1', 'dir2', 'shade'].forEach(function (k) {
+          $(k).checked = st[k];
+        });
+
+        $('shadeColor').value = st.shadeColor;
+        $('shadeColor').disabled = !st.shade;
+
+        $('size').value = st.size;
+        $('gap').value = st.gap;
+        $('liq').value = st.liq;
+        $('thr').value = st.thr;
+
+        $('o_size').textContent = st.size + ' px';
+        $('o_gap').textContent = st.gap + ' px';
+        $('o_liq').textContent = st.liq + '%';
+        $('o_thr').textContent = st.thr + '%';
+
+        document.querySelectorAll('input[name="grid"]').forEach(function (r) {
+          r.checked = r.value === st.grid;
+        });
+        document.querySelectorAll('input[name="mode"]').forEach(function (r) {
+          r.checked = r.value === st.mode;
+        });
+
+        $('inv').checked = st.inv;
+        $('transp').checked = st.transp;
+        $('icon').value = st.icon;
+
+        document.querySelectorAll('.thumb').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.dataset.id === st.icon));
+        });
+      }
+
+      function setIcon(id) {
+        if (id !== 'upload' && BYID[id]) {
+          var ic = BYID[id];
+          if (ic.topic !== st.topic) {
+            st.topic = ic.topic;
+            setColors(TOPICS[ic.topic].pal);
+          }
+        }
+        st.icon = id;
+        syncOutputs();
+        renderMain();
+      }
+
+      function flash(t) {
+        var msg = $('msg');
+        if (!msg) return;
+        msg.textContent = t;
+        clearTimeout(flash.t);
+        flash.t = setTimeout(function () {
+          msg.textContent = '';
+        }, 3800);
+      }
+
+      function buildStatic() {
+        var sel = $('icon');
+        var sheet = $('sheet');
+        var chips = $('chips');
+
+        Object.keys(TOPICS).forEach(function (tid) {
+          var og = document.createElement('optgroup');
+          og.label = TOPICS[tid].name;
+          sel.appendChild(og);
+
+          var card = document.createElement('article');
+          card.className = 'bg-gSurface border border-gOutline rounded-[24px] p-5 flex flex-col gap-4 shadow-xs';
+          card.innerHTML =
+            '<div class="flex items-start justify-between gap-3">' +
+              '<div>' +
+                '<h3 class="font-display text-base font-semibold text-gInk">' + TOPICS[tid].name + '</h3>' +
+                '<p class="text-xs text-gInkSecondary mt-1 leading-relaxed">' + TOPICS[tid].note + '</p>' +
+              '</div>' +
+              '<span class="w-5 h-5 rounded-full border border-gOutline shrink-0 mt-0.5" style="background:linear-gradient(135deg,' + TOPICS[tid].pal.bg + ' 50%,' + TOPICS[tid].pal.ink + ' 50%)"></span>' +
+            '</div>' +
+            '<div class="thumbs grid grid-cols-3 gap-3 mt-auto"></div>';
+          sheet.appendChild(card);
+
+          ICONS.filter(function (i) { return i.topic === tid; }).forEach(function (ic) {
+            var o = document.createElement('option');
+            o.value = ic.id;
+            o.textContent = ic.name;
+            og.appendChild(o);
+
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'thumb group text-left flex flex-col gap-1.5 focus:outline-none';
+            b.dataset.id = ic.id;
+            b.innerHTML =
+              '<div class="thumb-box w-full aspect-square rounded-2xl overflow-hidden border border-gOutline/80 transition-transform group-hover:scale-[1.03]" data-thumb="' + ic.id + '"></div>' +
+              '<span class="thumb-label text-[11px] leading-tight text-gInkSecondary group-hover:text-gInk line-clamp-2">' + ic.name + '</span>';
+            b.addEventListener('click', function () {
+              setIcon(ic.id);
+            });
+            card.querySelector('.thumbs').appendChild(b);
+          });
+
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'w-7 h-7 rounded-full border border-gOutline shadow-2xs hover:scale-110 transition-transform cursor-pointer focus:outline-none focus:ring-2 focus:ring-gBlue';
+          chip.title = TOPICS[tid].name;
+          chip.setAttribute('aria-label', 'Palette: ' + TOPICS[tid].name);
+          chip.style.background = 'linear-gradient(135deg,' + TOPICS[tid].pal.bg + ' 50%,' + TOPICS[tid].pal.ink + ' 50%)';
+          chip.addEventListener('click', function () {
+            setColors(TOPICS[tid].pal);
+            renderMain();
+          });
+          chips.appendChild(chip);
+        });
+
+        // Clean Google Monochrome Swatch (#F8F9FA / #202124)
+        var mono = document.createElement('button');
+        mono.type = 'button';
+        mono.className = 'w-7 h-7 rounded-full border border-gOutline shadow-2xs hover:scale-110 transition-transform cursor-pointer focus:outline-none focus:ring-2 focus:ring-gBlue';
+        mono.title = 'Monochrome (#F8F9FA / #202124)';
+        mono.setAttribute('aria-label', 'Palette: Monochrome');
+        mono.style.background = 'linear-gradient(135deg, #F8F9FA 50%, #202124 50%)';
+        mono.addEventListener('click', function () {
+          setColors({ bg: '#F8F9FA', ink: '#202124' });
+          renderMain();
+        });
+        chips.appendChild(mono);
+      }
+
+      function resetAll() {
+        Object.keys(DEFAULTS).forEach(function (k) {
+          st[k] = DEFAULTS[k];
+        });
+        st.transp = false;
+        if (st.icon !== 'upload' && BYID[st.icon]) {
+          setColors(TOPICS[BYID[st.icon].topic].pal);
+        } else {
+          setColors(TOPICS.nat.pal);
+        }
+        syncOutputs();
+        renderMain();
+        renderThumbs();
+        flash('Defaults restored.');
+      }
+
+      function bind() {
+        $('shuffle').addEventListener('click', function () {
+          if (window.crypto && crypto.getRandomValues) {
+            st.seed = crypto.getRandomValues(new Uint32Array(1))[0];
+          } else {
+            st.seed = Math.floor(Math.random() * 1000000);
+          }
+          schedule();
+        });
+
+        ['dir0', 'dir1', 'dir2', 'shade'].forEach(function (k) {
+          $(k).addEventListener('change', function () {
+            st[k] = $(k).checked;
+            syncOutputs();
+            schedule();
+          });
+        });
+
+        $('shadeColor').addEventListener('input', function () {
+          st.shadeColor = $('shadeColor').value;
+          schedule();
+        });
+
+        ['size', 'gap', 'liq', 'thr', 'density', 'widthPct'].concat(Object.keys(shadeUnits)).forEach(function (k) {
+          $(k).addEventListener('input', function () {
+            st[k] = +this.value;
+            syncOutputs();
+            schedule();
+          });
+        });
+
+        document.querySelectorAll('input[name="grid"]').forEach(function (r) {
+          r.addEventListener('change', function () {
+            st.grid = this.value;
+            schedule();
+          });
+        });
+
+        document.querySelectorAll('input[name="mode"]').forEach(function (r) {
+          r.addEventListener('change', function () {
+            st.mode = this.value;
+            schedule();
+          });
+        });
+
+        $('inv').addEventListener('change', function () {
+          st.inv = this.checked;
+          schedule();
+        });
+
+        $('transp').addEventListener('change', function () {
+          st.transp = this.checked;
+          renderMain();
+        });
+
+        $('bg').addEventListener('input', function () {
+          st.bg = this.value;
+          renderMain();
+        });
+
+        $('ink').addEventListener('input', function () {
+          st.ink = this.value;
+          renderMain();
+        });
+
+        $('icon').addEventListener('change', function () {
+          setIcon(this.value);
+        });
+
+        $('codeBox').addEventListener('toggle', function () {
+          if (this.open && last) {
+            $('code').value = svgMarkup(last.d, st.bg, st.ink, st.transp);
+          }
+        });
+
+        $('reset').addEventListener('click', resetAll);
+        $('topReset').addEventListener('click', resetAll);
+
+        // Drag & Drop + File Upload
+        var drop = $('drop');
+        ['dragenter', 'dragover'].forEach(function (e) {
+          drop.addEventListener(e, function (ev) {
+            ev.preventDefault();
+            drop.classList.add('drop-active');
+          });
+        });
+        ['dragleave', 'drop'].forEach(function (e) {
+          drop.addEventListener(e, function (ev) {
+            ev.preventDefault();
+            drop.classList.remove('drop-active');
+          });
+        });
+        drop.addEventListener('drop', function (ev) {
+          var fl = ev.dataTransfer && ev.dataTransfer.files[0];
+          if (fl) loadFile(fl);
+        });
+        $('file').addEventListener('change', function () {
+          if (this.files[0]) loadFile(this.files[0]);
+          this.value = '';
+        });
+        document.addEventListener('paste', function (ev) {
+          var items = ev.clipboardData ? ev.clipboardData.files : [];
+          if (items && items[0] && /^image\//.test(items[0].type)) loadFile(items[0]);
+        });
+
+        $('copySvg').addEventListener('click', copySvg);
+        $('topCopySvg').addEventListener('click', copySvg);
+        $('saveSvg').addEventListener('click', function () { saveFile('svg'); });
+        $('savePng').addEventListener('click', function () { saveFile('png'); });
+      }
+
+      function loadFile(file) {
+        if (!/^image\//.test(file.type)) {
+          flash('Please select a valid PNG, JPG, or SVG image.');
+          return;
+        }
+        var fr = new FileReader();
+        fr.onerror = function () { flash('Could not read the selected file.'); };
+        fr.onload = function () {
+          var img = new Image();
+          img.onerror = function () { flash('Could not decode this image.'); };
+          img.onload = function () {
+            var res = maskFromImage(img);
+            upload = res;
+            var opt = $('icon').querySelector('option[value="upload"]');
+            if (!opt) {
+              opt = document.createElement('option');
+              opt.value = 'upload';
+              $('icon').insertBefore(opt, $('icon').firstChild);
+            }
+            opt.textContent = 'Uploaded: ' + file.name.slice(0, 28);
+            st.mode = res.alphaMode ? 'solid' : 'half';
+            st.inv = false;
+            setIcon('upload');
+            renderThumbs();
+            flash(res.alphaMode ? 'Artwork converted from alpha silhouette.' : 'Artwork converted from luminance tone.');
+          };
+          img.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+      }
+
+      /* ---------- Export (Standard Browser Blob Download + Clipboard) ---------- */
+      function fileSvg() {
+        return svgMarkup(last.d, st.bg, st.ink, st.transp);
+      }
+
+      function triggerDownload(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1500);
+      }
+
+      function saveFile(kind) {
+        renderMain();
+        var base = 'inkwell-' + (st.icon === 'upload' ? 'artwork' : st.icon);
+        var svgText = fileSvg();
+
+        if (kind === 'svg') {
+          var svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+          triggerDownload(svgBlob, base + '.svg');
+          flash('SVG downloaded.');
+          return;
+        }
+
+        var url = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
+        var img = new Image();
+        img.onload = function () {
+          var cv = document.createElement('canvas');
+          cv.width = cv.height = W * 3; // 1440 x 1440 high-DPI export
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(url);
+          cv.toBlob(function (blob) {
+            if (!blob) {
+              flash('Could not generate PNG.');
+              return;
+            }
+            triggerDownload(blob, base + '.png');
+            flash('PNG downloaded (1440 × 1440).');
+          }, 'image/png');
+        };
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          flash('Could not generate PNG.');
+        };
+        img.src = url;
+      }
+
+      function copySvg() {
+        var txt = fileSvg();
+        var codeBox = $('codeBox');
+        var codeEl = $('code');
+
+        function execFallback() {
+          codeBox.open = true;
+          codeEl.value = txt;
+          codeEl.focus();
+          codeEl.select();
+          try {
+            var ok = document.execCommand('copy');
+            flash(ok ? 'SVG copied — paste directly into Figma.' : 'Press Ctrl/Cmd + C to copy the selected SVG.');
+          } catch (e) {
+            flash('Press Ctrl/Cmd + C to copy the selected SVG.');
+          }
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).then(function () {
+            flash('SVG copied — paste directly into Figma.');
+          }, execFallback);
+        } else {
+          execFallback();
+        }
+      }
+
+      /* ---------- Immediate Initialization ---------- */
+      function init() {
+        buildStatic();
+        bind();
+        syncOutputs();
+        setColors(TOPICS.nat.pal);
+        renderMain();
+        renderThumbs();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
